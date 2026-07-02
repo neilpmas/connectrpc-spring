@@ -9,6 +9,7 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -29,16 +30,24 @@ public class ConnectFilter implements WebFilter {
 
     private static final MediaType APPLICATION_PROTO = MediaType.parseMediaType("application/proto");
 
+    // Mapping per the Connect protocol spec: https://connectrpc.com/docs/protocol#error-codes
     private static final Map<Status.Code, ConnectError> STATUS_MAP = Map.ofEntries(
+        Map.entry(Status.Code.CANCELLED, new ConnectError("canceled", HttpStatusCode.valueOf(499))),
+        Map.entry(Status.Code.UNKNOWN, new ConnectError("unknown", HttpStatus.INTERNAL_SERVER_ERROR)),
         Map.entry(Status.Code.INVALID_ARGUMENT, new ConnectError("invalid_argument", HttpStatus.BAD_REQUEST)),
+        Map.entry(Status.Code.DEADLINE_EXCEEDED, new ConnectError("deadline_exceeded", HttpStatus.GATEWAY_TIMEOUT)),
         Map.entry(Status.Code.NOT_FOUND, new ConnectError("not_found", HttpStatus.NOT_FOUND)),
         Map.entry(Status.Code.ALREADY_EXISTS, new ConnectError("already_exists", HttpStatus.CONFLICT)),
         Map.entry(Status.Code.PERMISSION_DENIED, new ConnectError("permission_denied", HttpStatus.FORBIDDEN)),
-        Map.entry(Status.Code.UNAUTHENTICATED, new ConnectError("unauthenticated", HttpStatus.UNAUTHORIZED)),
-        Map.entry(Status.Code.UNAVAILABLE, new ConnectError("unavailable", HttpStatus.SERVICE_UNAVAILABLE)),
-        Map.entry(Status.Code.UNIMPLEMENTED, new ConnectError("unimplemented", HttpStatus.NOT_FOUND)),
+        Map.entry(Status.Code.RESOURCE_EXHAUSTED, new ConnectError("resource_exhausted", HttpStatus.TOO_MANY_REQUESTS)),
+        Map.entry(Status.Code.FAILED_PRECONDITION, new ConnectError("failed_precondition", HttpStatus.BAD_REQUEST)),
+        Map.entry(Status.Code.ABORTED, new ConnectError("aborted", HttpStatus.CONFLICT)),
+        Map.entry(Status.Code.OUT_OF_RANGE, new ConnectError("out_of_range", HttpStatus.BAD_REQUEST)),
+        Map.entry(Status.Code.UNIMPLEMENTED, new ConnectError("unimplemented", HttpStatus.NOT_IMPLEMENTED)),
         Map.entry(Status.Code.INTERNAL, new ConnectError("internal", HttpStatus.INTERNAL_SERVER_ERROR)),
-        Map.entry(Status.Code.UNKNOWN, new ConnectError("unknown", HttpStatus.INTERNAL_SERVER_ERROR))
+        Map.entry(Status.Code.UNAVAILABLE, new ConnectError("unavailable", HttpStatus.SERVICE_UNAVAILABLE)),
+        Map.entry(Status.Code.DATA_LOSS, new ConnectError("data_loss", HttpStatus.INTERNAL_SERVER_ERROR)),
+        Map.entry(Status.Code.UNAUTHENTICATED, new ConnectError("unauthenticated", HttpStatus.UNAUTHORIZED))
     );
 
     private final ConnectServiceRegistry registry;
@@ -196,7 +205,7 @@ public class ConnectFilter implements WebFilter {
     }
 
     private Mono<Void> writeConnectError(
-            ServerHttpResponse response, String code, @Nullable String message, HttpStatus status) {
+            ServerHttpResponse response, String code, @Nullable String message, HttpStatusCode status) {
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
         String json = "{\"code\":\"" + escapeJson(code)
@@ -210,5 +219,5 @@ public class ConnectFilter implements WebFilter {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private record ConnectError(String code, HttpStatus httpStatus) {}
+    private record ConnectError(String code, HttpStatusCode httpStatus) {}
 }

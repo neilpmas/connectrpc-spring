@@ -62,4 +62,44 @@ class ConnectFilterEndToEndTest {
             .expectBody()
             .jsonPath("$.code").isEqualTo("unimplemented");
     }
+
+    @Test
+    void resourceExhausted_shouldReturn429WithResourceExhaustedCode() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        SayHelloRequest request = SayHelloRequest.newBuilder()
+            .setName("trigger-resource-exhausted")
+            .build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(request.toByteArray())
+            .exchange()
+            .expectStatus().isEqualTo(429)
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("resource_exhausted")
+            .jsonPath("$.message").isEqualTo("Quota exceeded");
+    }
+
+    @Test
+    void cancelled_shouldReturn499WithCanceledCode() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        SayHelloRequest request = SayHelloRequest.newBuilder()
+            .setName("trigger-cancelled")
+            .build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(request.toByteArray())
+            .exchange()
+            .expectStatus().isEqualTo(499)
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("canceled")
+            .jsonPath("$.message").isEqualTo("Request cancelled");
+    }
 }

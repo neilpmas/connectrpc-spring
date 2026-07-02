@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package greet.v1;
+
+option java_package = "dev.neilmason.connect.test.greet.v1";
+option java_multiple_files = true;
+
+message SayHelloRequest {
+  string name = 1;
+}
+
+message SayHelloResponse {
+  string greeting = 1;
+}
+
+service GreetService {
+  rpc SayHello(SayHelloRequest) returns (SayHelloResponse);
+}

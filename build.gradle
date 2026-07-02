@@ -1,0 +1,73 @@
+plugins {
+    id 'java-library'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.google.protobuf' version '0.9.4'
+}
+
+group = 'dev.neilmason'
+version = '0.1.0-SNAPSHOT'
+description = 'Spring Boot starter serving Connect protocol (connectrpc.com) from existing gRPC service definitions'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(24)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    springBootVersion = '4.1.0'
+    grpcVersion = '1.82.1'
+    protobufVersion = '4.35.1'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.boot:spring-boot-dependencies:${springBootVersion}"
+        mavenBom "io.grpc:grpc-bom:${grpcVersion}"
+        mavenBom "com.google.protobuf:protobuf-bom:${protobufVersion}"
+    }
+}
+
+dependencies {
+    api 'io.grpc:grpc-api'
+    api 'io.grpc:grpc-stub'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.security:spring-security-core'
+    implementation 'org.jspecify:jspecify:1.0.0'
+
+    testImplementation 'com.google.protobuf:protobuf-java'
+    testImplementation 'io.grpc:grpc-protobuf'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${protobufVersion}"
+    }
+    plugins {
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+        }
+    }
+    generateProtoTasks {
+        ofSourceSet('test').forEach { task ->
+            task.plugins {
+                grpc {}
+            }
+        }
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.named('processTestResources', Copy) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

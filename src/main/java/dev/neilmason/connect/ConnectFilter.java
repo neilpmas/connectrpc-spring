@@ -23,12 +23,21 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.ByteArrayInputStream;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 
 public class ConnectFilter implements WebFilter {
 
     private static final MediaType APPLICATION_PROTO = MediaType.parseMediaType("application/proto");
+
+    // Per the Connect protocol spec (https://connectrpc.com/docs/protocol#unary-request), the only
+    // defined protocol version is "1", and Timeout-Milliseconds is a positive integer as an ASCII
+    // string of at most 10 digits.
+    private static final String SUPPORTED_PROTOCOL_VERSION = "1";
+    private static final Pattern TIMEOUT_MS_PATTERN = Pattern.compile("[0-9]{1,10}");
 
     // Mapping per the Connect protocol spec: https://connectrpc.com/docs/protocol#error-codes
     private static final Map<Status.Code, ConnectError> STATUS_MAP = Map.ofEntries(
@@ -85,6 +94,25 @@ public class ConnectFilter implements WebFilter {
                 "Method not found: " + serviceName + "/" + methodName, HttpStatus.NOT_FOUND);
         }
 
+        // Servers may reject requests with an unsupported protocol version with HTTP 400:
+        // https://connectrpc.com/docs/protocol#unary-request
+        String protocolVersion = request.getHeaders().getFirst("Connect-Protocol-Version");
+        if (protocolVersion != null && !SUPPORTED_PROTOCOL_VERSION.equals(protocolVersion)) {
+            return writeConnectError(exchange.getResponse(), "invalid_argument",
+                "Unsupported Connect-Protocol-Version: " + protocolVersion, HttpStatus.BAD_REQUEST);
+        }
+
+        String timeoutHeader = request.getHeaders().getFirst("Connect-Timeout-Ms");
+        Duration timeout = null;
+        if (timeoutHeader != null) {
+            if (!TIMEOUT_MS_PATTERN.matcher(timeoutHeader).matches()) {
+                return writeConnectError(exchange.getResponse(), "invalid_argument",
+                    "Invalid Connect-Timeout-Ms: " + timeoutHeader, HttpStatus.BAD_REQUEST);
+            }
+            timeout = Duration.ofMillis(Long.parseLong(timeoutHeader));
+        }
+        Duration invocationTimeout = timeout;
+
         return DataBufferUtils.join(request.getBody())
             .defaultIfEmpty(exchange.getResponse().bufferFactory().wrap(new byte[0]))
             .flatMap(dataBuffer -> {
@@ -98,7 +126,7 @@ public class ConnectFilter implements WebFilter {
                 byte[] bodyBytes = new byte[byteCount];
                 dataBuffer.read(bodyBytes);
                 DataBufferUtils.release(dataBuffer);
-                return invokeMethod(exchange, entry, bodyBytes);
+                return invokeMethod(exchange, entry, bodyBytes, invocationTimeout);
             });
     }
 
@@ -106,7 +134,8 @@ public class ConnectFilter implements WebFilter {
     private Mono<Void> invokeMethod(
             ServerWebExchange exchange,
             ConnectServiceRegistry.MethodEntry entry,
-            byte[] bodyBytes) {
+            byte[] bodyBytes,
+            @Nullable Duration timeout) {
 
         MethodDescriptor<Object, Object> descriptor =
             (MethodDescriptor<Object, Object>) entry.descriptor();
@@ -147,7 +176,7 @@ public class ConnectFilter implements WebFilter {
                     }
                 };
 
-                return Mono.fromCallable(() -> {
+                Mono<Object> invocation = Mono.fromCallable(() -> {
                         SecurityContextHolder.setContext(securityContext);
                         try {
                             entry.javaMethod().invoke(entry.service(), requestMessage, responseObserver);
@@ -160,7 +189,13 @@ public class ConnectFilter implements WebFilter {
                         return future;
                     })
                     .subscribeOn(Schedulers.boundedElastic())
-                    .flatMap(Mono::fromFuture)
+                    .flatMap(Mono::fromFuture);
+
+                if (timeout != null) {
+                    invocation = invocation.timeout(timeout);
+                }
+
+                return invocation
                     .flatMap(response -> writeProtoResponse(exchange.getResponse(), descriptor, response))
                     .onErrorResume(throwable -> handleError(exchange.getResponse(), throwable));
             });
@@ -189,6 +224,12 @@ public class ConnectFilter implements WebFilter {
     }
 
     private Mono<Void> handleError(ServerHttpResponse response, Throwable throwable) {
+        if (throwable instanceof TimeoutException) {
+            // "Deadline expired before RPC could complete": deadline_exceeded maps to HTTP 504 per
+            // https://connectrpc.com/docs/protocol#error-codes
+            return writeConnectError(response, "deadline_exceeded",
+                "The operation timed out", HttpStatus.GATEWAY_TIMEOUT);
+        }
         if (throwable instanceof StatusRuntimeException sre) {
             Status.Code code = sre.getStatus().getCode();
             ConnectError error = STATUS_MAP.getOrDefault(code,

@@ -23,6 +23,13 @@ public class GreetServiceImpl extends GreetServiceGrpc.GreetServiceImplBase {
                     .withDescription("Request cancelled").asRuntimeException());
                 return;
             }
+            case "trigger-slow" -> {
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             default -> { }
         }
         responseObserver.onNext(SayHelloResponse.newBuilder()

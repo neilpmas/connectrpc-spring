@@ -84,6 +84,78 @@ class ConnectFilterEndToEndTest {
     }
 
     @Test
+    void validProtocolVersionHeader_shouldStillSucceed() throws Exception {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        SayHelloRequest request = SayHelloRequest.newBuilder()
+            .setName("World")
+            .build();
+
+        byte[] responseBytes = webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .header("Connect-Protocol-Version", "1")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(request.toByteArray())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(byte[].class)
+            .returnResult()
+            .getResponseBody();
+
+        assertThat(responseBytes).isNotNull();
+        assertThat(SayHelloResponse.parseFrom(responseBytes).getGreeting()).isEqualTo("Hello, World!");
+    }
+
+    @Test
+    void unsupportedProtocolVersion_shouldReturn400WithInvalidArgumentCode() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .header("Connect-Protocol-Version", "2")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(SayHelloRequest.newBuilder().setName("World").build().toByteArray())
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("invalid_argument");
+    }
+
+    @Test
+    void malformedTimeoutHeader_shouldReturn400WithInvalidArgumentCode() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .header("Connect-Timeout-Ms", "not-a-number")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(SayHelloRequest.newBuilder().setName("World").build().toByteArray())
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("invalid_argument");
+    }
+
+    @Test
+    void timeoutExceeded_shouldReturn504WithDeadlineExceededCode() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .header("Connect-Timeout-Ms", "50")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(SayHelloRequest.newBuilder().setName("trigger-slow").build().toByteArray())
+            .exchange()
+            .expectStatus().isEqualTo(504)
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("deadline_exceeded");
+    }
+
+    @Test
     void cancelled_shouldReturn499WithCanceledCode() {
         WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
 

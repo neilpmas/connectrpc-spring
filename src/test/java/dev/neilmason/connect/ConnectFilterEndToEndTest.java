@@ -1,5 +1,6 @@
 package dev.neilmason.connect;
 
+import com.google.protobuf.util.JsonFormat;
 import dev.neilmason.connect.test.greet.v1.SayHelloRequest;
 import dev.neilmason.connect.test.greet.v1.SayHelloResponse;
 import dev.neilmason.connect.testapp.TestApplication;
@@ -46,6 +47,70 @@ class ConnectFilterEndToEndTest {
         assertThat(responseBytes).isNotNull();
         SayHelloResponse response = SayHelloResponse.parseFrom(responseBytes);
         assertThat(response.getGreeting()).isEqualTo("Hello, World!");
+    }
+
+    @Test
+    void sayHello_withJsonContentType_shouldReturnJsonResponse() throws Exception {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        String responseJson = webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue("{\"name\":\"World\"}")
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentType(MediaType.APPLICATION_JSON)
+            .expectBody(String.class)
+            .returnResult()
+            .getResponseBody();
+
+        assertThat(responseJson).isNotNull();
+        SayHelloResponse.Builder builder = SayHelloResponse.newBuilder();
+        JsonFormat.parser().merge(responseJson, builder);
+        assertThat(builder.getGreeting()).isEqualTo("Hello, World!");
+    }
+
+    @Test
+    void malformedJsonBody_shouldReturn400WithInvalidArgumentCode() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        //language=none
+        String malformedJson = "{not valid json";
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(malformedJson)
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("invalid_argument");
+    }
+
+    @Test
+    void unsupportedContentType_shouldReturn415() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .contentType(MediaType.TEXT_PLAIN)
+            .bodyValue("hello")
+            .exchange()
+            .expectStatus().isEqualTo(415);
+    }
+
+    @Test
+    void missingContentType_shouldReturn415() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .exchange()
+            .expectStatus().isEqualTo(415);
     }
 
     @Test

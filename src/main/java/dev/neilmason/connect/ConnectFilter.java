@@ -1,5 +1,7 @@
 package dev.neilmason.connect;
 
+import com.google.protobuf.Message;
+import com.google.protobuf.util.JsonFormat;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -23,6 +25,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -102,6 +105,20 @@ public class ConnectFilter implements WebFilter {
                 "Unsupported Connect-Protocol-Version: " + protocolVersion, HttpStatus.BAD_REQUEST);
         }
 
+        // Unary content types are "application/" followed by the codec name ("proto" or "json").
+        // "If the server doesn't support the specified Message-Codec, it must respond with an HTTP
+        // status code of 415 Unsupported Media Type": https://connectrpc.com/docs/protocol#unary-request
+        MediaType contentType = request.getHeaders().getContentType();
+        Codec codec;
+        if (contentType != null && APPLICATION_PROTO.isCompatibleWith(contentType)) {
+            codec = Codec.PROTO;
+        } else if (contentType != null && MediaType.APPLICATION_JSON.isCompatibleWith(contentType)) {
+            codec = Codec.JSON;
+        } else {
+            return writeConnectError(exchange.getResponse(), "unknown",
+                "Unsupported Content-Type: " + contentType, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        }
+
         String timeoutHeader = request.getHeaders().getFirst("Connect-Timeout-Ms");
         Duration timeout = null;
         if (timeoutHeader != null) {
@@ -126,7 +143,7 @@ public class ConnectFilter implements WebFilter {
                 byte[] bodyBytes = new byte[byteCount];
                 dataBuffer.read(bodyBytes);
                 DataBufferUtils.release(dataBuffer);
-                return invokeMethod(exchange, entry, bodyBytes, invocationTimeout);
+                return invokeMethod(exchange, entry, bodyBytes, codec, invocationTimeout);
             });
     }
 
@@ -135,6 +152,7 @@ public class ConnectFilter implements WebFilter {
             ServerWebExchange exchange,
             ConnectServiceRegistry.MethodEntry entry,
             byte[] bodyBytes,
+            Codec codec,
             @Nullable Duration timeout) {
 
         MethodDescriptor<Object, Object> descriptor =
@@ -142,7 +160,10 @@ public class ConnectFilter implements WebFilter {
 
         Object requestMessage;
         try {
-            requestMessage = descriptor.parseRequest(new ByteArrayInputStream(bodyBytes));
+            requestMessage = switch (codec) {
+                case PROTO -> descriptor.parseRequest(new ByteArrayInputStream(bodyBytes));
+                case JSON -> parseJsonRequest(descriptor, bodyBytes);
+            };
         } catch (Exception e) {
             return writeConnectError(exchange.getResponse(), "invalid_argument",
                 "Failed to parse request: " + e.getMessage(), HttpStatus.BAD_REQUEST);
@@ -196,7 +217,10 @@ public class ConnectFilter implements WebFilter {
                 }
 
                 return invocation
-                    .flatMap(response -> writeProtoResponse(exchange.getResponse(), descriptor, response))
+                    .flatMap(response -> switch (codec) {
+                        case PROTO -> writeProtoResponse(exchange.getResponse(), descriptor, response);
+                        case JSON -> writeJsonResponse(exchange.getResponse(), response);
+                    })
                     .onErrorResume(throwable -> handleError(exchange.getResponse(), throwable));
             });
     }
@@ -216,6 +240,32 @@ public class ConnectFilter implements WebFilter {
         try (var stream = descriptor.streamResponse(message)) {
             byte[] bytes = stream.readAllBytes();
             DataBuffer buffer = response.bufferFactory().wrap(bytes);
+            return response.writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            return writeConnectError(response, "internal",
+                "Failed to serialize response", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Protobuf-based marshallers (the only kind this library supports) implement PrototypeMarshaller,
+    // exposing the default instance of the concrete Message type for JSON parsing.
+    @SuppressWarnings("DataFlowIssue") // PrototypeMarshaller contract guarantees a non-null prototype
+    private Object parseJsonRequest(MethodDescriptor<Object, Object> descriptor, byte[] bodyBytes)
+            throws Exception {
+        MethodDescriptor.PrototypeMarshaller<Object> marshaller =
+            (MethodDescriptor.PrototypeMarshaller<Object>) descriptor.getRequestMarshaller();
+        Message prototype = (Message) marshaller.getMessagePrototype();
+        Message.Builder builder = prototype.newBuilderForType();
+        JsonFormat.parser().merge(new String(bodyBytes, StandardCharsets.UTF_8), builder);
+        return builder.build();
+    }
+
+    private Mono<Void> writeJsonResponse(ServerHttpResponse response, Object message) {
+        response.setStatusCode(HttpStatus.OK);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        try {
+            String json = JsonFormat.printer().print((Message) message);
+            DataBuffer buffer = response.bufferFactory().wrap(json.getBytes(StandardCharsets.UTF_8));
             return response.writeWith(Mono.just(buffer));
         } catch (Exception e) {
             return writeConnectError(response, "internal",
@@ -259,6 +309,8 @@ public class ConnectFilter implements WebFilter {
         if (value == null) return "";
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
+
+    private enum Codec { PROTO, JSON }
 
     private record ConnectError(String code, HttpStatusCode httpStatus) {}
 }

@@ -6,14 +6,12 @@ import io.grpc.ServerMethodDefinition;
 import io.grpc.ServerServiceDefinition;
 import io.grpc.stub.StreamObserver;
 import org.jspecify.annotations.Nullable;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
 public class ConnectServiceRegistry {
 
     private final Map<String, MethodEntry> methods = new ConcurrentHashMap<>();

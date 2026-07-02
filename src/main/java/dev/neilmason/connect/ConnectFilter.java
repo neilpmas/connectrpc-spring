@@ -15,7 +15,6 @@ import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
-import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -26,10 +25,8 @@ import java.io.ByteArrayInputStream;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-@Component
 public class ConnectFilter implements WebFilter {
 
-    private static final String CONNECT_PREFIX = "/connect/";
     private static final MediaType APPLICATION_PROTO = MediaType.parseMediaType("application/proto");
 
     private static final Map<Status.Code, ConnectError> STATUS_MAP = Map.ofEntries(
@@ -45,9 +42,14 @@ public class ConnectFilter implements WebFilter {
     );
 
     private final ConnectServiceRegistry registry;
+    private final String pathPrefix;
+    private final long maxMessageSizeBytes;
 
-    public ConnectFilter(ConnectServiceRegistry registry) {
+    public ConnectFilter(ConnectServiceRegistry registry, ConnectProperties properties) {
         this.registry = registry;
+        String prefix = properties.getPathPrefix();
+        this.pathPrefix = prefix.endsWith("/") ? prefix : prefix + "/";
+        this.maxMessageSizeBytes = properties.getMaxMessageSize().toBytes();
     }
 
     @Override
@@ -55,11 +57,11 @@ public class ConnectFilter implements WebFilter {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
 
-        if (!HttpMethod.POST.equals(request.getMethod()) || !path.startsWith(CONNECT_PREFIX)) {
+        if (!HttpMethod.POST.equals(request.getMethod()) || !path.startsWith(pathPrefix)) {
             return chain.filter(exchange);
         }
 
-        String remaining = path.substring(CONNECT_PREFIX.length());
+        String remaining = path.substring(pathPrefix.length());
         int lastSlash = remaining.lastIndexOf('/');
         if (lastSlash <= 0) {
             return writeConnectError(exchange.getResponse(), "unimplemented", "Invalid path", HttpStatus.NOT_FOUND);
@@ -77,7 +79,14 @@ public class ConnectFilter implements WebFilter {
         return DataBufferUtils.join(request.getBody())
             .defaultIfEmpty(exchange.getResponse().bufferFactory().wrap(new byte[0]))
             .flatMap(dataBuffer -> {
-                byte[] bodyBytes = new byte[dataBuffer.readableByteCount()];
+                int byteCount = dataBuffer.readableByteCount();
+                if (byteCount > maxMessageSizeBytes) {
+                    DataBufferUtils.release(dataBuffer);
+                    return writeConnectError(exchange.getResponse(), "resource_exhausted",
+                        "Message size " + byteCount + " exceeds maximum " + maxMessageSizeBytes + " bytes",
+                        HttpStatus.CONTENT_TOO_LARGE);
+                }
+                byte[] bodyBytes = new byte[byteCount];
                 dataBuffer.read(bodyBytes);
                 DataBufferUtils.release(dataBuffer);
                 return invokeMethod(exchange, entry, bodyBytes);

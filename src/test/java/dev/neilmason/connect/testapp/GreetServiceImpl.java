@@ -1,4 +1,4 @@
-package dev.neilmason.connect;
+package dev.neilmason.connect.testapp;
 
 import dev.neilmason.connect.test.greet.v1.GreetServiceGrpc;
 import dev.neilmason.connect.test.greet.v1.SayHelloRequest;

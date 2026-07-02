@@ -2,6 +2,7 @@ package dev.neilmason.connect;
 
 import dev.neilmason.connect.test.greet.v1.SayHelloRequest;
 import dev.neilmason.connect.test.greet.v1.SayHelloResponse;
+import dev.neilmason.connect.testapp.TestApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

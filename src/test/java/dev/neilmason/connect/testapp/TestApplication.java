@@ -1,4 +1,4 @@
-package dev.neilmason.connect;
+package dev.neilmason.connect.testapp;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 

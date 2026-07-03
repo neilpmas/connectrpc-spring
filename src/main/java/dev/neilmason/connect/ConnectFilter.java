@@ -1,10 +1,12 @@
 package dev.neilmason.connect;
 
+import com.google.protobuf.Any;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.grpc.protobuf.StatusProto;
 import io.grpc.stub.StreamObserver;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -27,6 +29,8 @@ import reactor.core.scheduler.Schedulers;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
@@ -41,6 +45,15 @@ public class ConnectFilter implements WebFilter {
     // string of at most 10 digits.
     private static final String SUPPORTED_PROTOCOL_VERSION = "1";
     private static final Pattern TIMEOUT_MS_PATTERN = Pattern.compile("[0-9]{1,10}");
+
+    // CORS preflight handling per https://connectrpc.com/docs/cors/. This filter only serves the
+    // unary POST variant of the Connect protocol (no gRPC-Web), so the allowed method list and
+    // headers are scoped accordingly; gRPC-Web trailer headers like Grpc-Status don't apply here.
+    private static final String CORS_ALLOWED_METHODS = "POST";
+    private static final String CORS_ALLOWED_HEADERS =
+        "Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-User-Agent";
+    private static final String CORS_MAX_AGE = "7200"; // 2 hours: the modern Chrome cap.
+    private static final String CORS_VARY = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers";
 
     // Mapping per the Connect protocol spec: https://connectrpc.com/docs/protocol#error-codes
     private static final Map<Status.Code, ConnectError> STATUS_MAP = Map.ofEntries(
@@ -65,12 +78,16 @@ public class ConnectFilter implements WebFilter {
     private final ConnectServiceRegistry registry;
     private final String pathPrefix;
     private final long maxMessageSizeBytes;
+    private final boolean corsEnabled;
+    private final List<String> corsAllowedOrigins;
 
     public ConnectFilter(ConnectServiceRegistry registry, ConnectProperties properties) {
         this.registry = registry;
         String prefix = properties.getPathPrefix();
         this.pathPrefix = prefix.endsWith("/") ? prefix : prefix + "/";
         this.maxMessageSizeBytes = properties.getMaxMessageSize().toBytes();
+        this.corsEnabled = properties.isCorsEnabled();
+        this.corsAllowedOrigins = properties.getCorsAllowedOrigins();
     }
 
     @Override
@@ -78,8 +95,16 @@ public class ConnectFilter implements WebFilter {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
 
+        if (corsEnabled && HttpMethod.OPTIONS.equals(request.getMethod()) && path.startsWith(pathPrefix)) {
+            return handleCorsPreflight(exchange);
+        }
+
         if (!HttpMethod.POST.equals(request.getMethod()) || !path.startsWith(pathPrefix)) {
             return chain.filter(exchange);
+        }
+
+        if (corsEnabled) {
+            applyCorsAllowOrigin(exchange.getRequest(), exchange.getResponse());
         }
 
         String remaining = path.substring(pathPrefix.length());
@@ -145,6 +170,33 @@ public class ConnectFilter implements WebFilter {
                 DataBufferUtils.release(dataBuffer);
                 return invokeMethod(exchange, entry, bodyBytes, codec, invocationTimeout);
             });
+    }
+
+    // CORS preflight response per https://connectrpc.com/docs/cors/: no gRPC method is invoked,
+    // we just describe what the actual request is allowed to do and return directly.
+    private Mono<Void> handleCorsPreflight(ServerWebExchange exchange) {
+        ServerHttpResponse response = exchange.getResponse();
+        applyCorsAllowOrigin(exchange.getRequest(), response);
+        response.getHeaders().add("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+        response.getHeaders().add("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
+        response.getHeaders().add("Access-Control-Max-Age", CORS_MAX_AGE);
+        response.getHeaders().add("Vary", CORS_VARY);
+        response.setStatusCode(HttpStatus.NO_CONTENT);
+        return response.setComplete();
+    }
+
+    // Resolves Access-Control-Allow-Origin against the configured allow-list and sets it on the
+    // response, if any origin is allowed. If the list contains "*", any origin is allowed (echoing
+    // the request's Origin header back, or "*" literally if there's no Origin header). Otherwise,
+    // only an exact match against the configured list is allowed. An unmatched origin simply gets no
+    // CORS header at all (not an error) -- the browser then blocks the response client-side.
+    private void applyCorsAllowOrigin(ServerHttpRequest request, ServerHttpResponse response) {
+        String origin = request.getHeaders().getFirst("Origin");
+        if (corsAllowedOrigins.contains("*")) {
+            response.getHeaders().add("Access-Control-Allow-Origin", origin != null ? origin : "*");
+        } else if (origin != null && corsAllowedOrigins.contains(origin)) {
+            response.getHeaders().add("Access-Control-Allow-Origin", origin);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -288,20 +340,49 @@ public class ConnectFilter implements WebFilter {
             if (message == null) {
                 message = sre.getMessage();
             }
-            return writeConnectError(response, error.code(), message, error.httpStatus());
+            // StatusProto.fromThrowable() decodes the binary grpc-status-details-bin trailer (if the
+            // service attached one via StatusProto.toStatusRuntimeException()) back into a
+            // com.google.rpc.Status; it returns null when there are no such trailers.
+            com.google.rpc.Status rpcStatus = StatusProto.fromThrowable(sre);
+            List<Any> details = rpcStatus != null ? rpcStatus.getDetailsList() : List.of();
+            return writeConnectError(response, error.code(), message, error.httpStatus(), details);
         }
         return writeConnectError(response, "internal",
             throwable.getMessage() != null ? throwable.getMessage() : "Internal error",
-            HttpStatus.INTERNAL_SERVER_ERROR);
+            HttpStatus.INTERNAL_SERVER_ERROR, List.of());
     }
 
     private Mono<Void> writeConnectError(
             ServerHttpResponse response, String code, @Nullable String message, HttpStatusCode status) {
+        return writeConnectError(response, code, message, status, List.of());
+    }
+
+    // Structured error details per https://connectrpc.com/docs/protocol#error-codes: each detail's
+    // "type" is the fully-qualified Protobuf message name (the Any type URL with the
+    // "type.googleapis.com/" prefix stripped), and "value" is the unpadded, standard base64 encoding
+    // of the message's serialized bytes.
+    private Mono<Void> writeConnectError(
+            ServerHttpResponse response, String code, @Nullable String message, HttpStatusCode status,
+            List<Any> details) {
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        String json = "{\"code\":\"" + escapeJson(code)
-            + "\",\"message\":\"" + escapeJson(message) + "\"}";
-        DataBuffer buffer = response.bufferFactory().wrap(json.getBytes());
+        StringBuilder json = new StringBuilder("{\"code\":\"").append(escapeJson(code))
+            .append("\",\"message\":\"").append(escapeJson(message)).append("\"");
+        if (!details.isEmpty()) {
+            json.append(",\"details\":[");
+            for (int i = 0; i < details.size(); i++) {
+                if (i > 0) json.append(",");
+                Any any = details.get(i);
+                String typeUrl = any.getTypeUrl();
+                String type = typeUrl.substring(typeUrl.lastIndexOf('/') + 1);
+                String value = Base64.getEncoder().withoutPadding().encodeToString(any.getValue().toByteArray());
+                json.append("{\"type\":\"").append(escapeJson(type))
+                    .append("\",\"value\":\"").append(escapeJson(value)).append("\"}");
+            }
+            json.append("]");
+        }
+        json.append("}");
+        DataBuffer buffer = response.bufferFactory().wrap(json.toString().getBytes());
         return response.writeWith(Mono.just(buffer));
     }
 

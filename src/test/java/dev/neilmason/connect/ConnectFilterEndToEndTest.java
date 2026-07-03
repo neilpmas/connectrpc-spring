@@ -1,6 +1,8 @@
 package dev.neilmason.connect;
 
+import com.google.protobuf.StringValue;
 import com.google.protobuf.util.JsonFormat;
+import com.jayway.jsonpath.JsonPath;
 import dev.neilmason.connect.test.greet.v1.SayHelloRequest;
 import dev.neilmason.connect.test.greet.v1.SayHelloResponse;
 import dev.neilmason.connect.testapp.TestApplication;
@@ -10,6 +12,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+
+import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -238,5 +242,73 @@ class ConnectFilterEndToEndTest {
             .expectBody()
             .jsonPath("$.code").isEqualTo("canceled")
             .jsonPath("$.message").isEqualTo("Request cancelled");
+    }
+
+    @Test
+    void corsPreflight_shouldReturn204WithAllowHeaders() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        webTestClient
+            .options()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .header("Origin", "https://example.com")
+            .header("Access-Control-Request-Method", "POST")
+            .exchange()
+            .expectStatus().isNoContent()
+            .expectHeader().valueEquals("Access-Control-Allow-Origin", "https://example.com")
+            .expectHeader().valueEquals("Access-Control-Allow-Methods", "POST")
+            .expectHeader().valueEquals("Access-Control-Allow-Headers",
+                "Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-User-Agent")
+            .expectHeader().valueEquals("Access-Control-Max-Age", "7200")
+            .expectHeader().valueEquals("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers");
+    }
+
+    @Test
+    void postRequest_shouldIncludeAccessControlAllowOrigin() {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        SayHelloRequest request = SayHelloRequest.newBuilder()
+            .setName("World")
+            .build();
+
+        webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .header("Origin", "https://example.com")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(request.toByteArray())
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().valueEquals("Access-Control-Allow-Origin", "https://example.com");
+    }
+
+    @Test
+    void triggerDetails_shouldReturnUnavailableWithStructuredDetails() throws Exception {
+        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        SayHelloRequest request = SayHelloRequest.newBuilder()
+            .setName("trigger-details")
+            .build();
+
+        byte[] responseBytes = webTestClient
+            .post()
+            .uri("/connect/greet.v1.GreetService/SayHello")
+            .contentType(APPLICATION_PROTO)
+            .bodyValue(request.toByteArray())
+            .exchange()
+            .expectStatus().isEqualTo(503)
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("unavailable")
+            .jsonPath("$.message").isEqualTo("overloaded: back off and retry")
+            .jsonPath("$.details[0].type").isEqualTo("google.protobuf.StringValue")
+            .returnResult()
+            .getResponseBody();
+
+        assertThat(responseBytes).isNotNull();
+        String json = new String(responseBytes);
+        String value = JsonPath.read(json, "$.details[0].value");
+        byte[] decoded = Base64.getDecoder().decode(value);
+        StringValue detail = StringValue.parseFrom(decoded);
+        assertThat(detail.getValue()).isEqualTo("retry-after-1s");
     }
 }

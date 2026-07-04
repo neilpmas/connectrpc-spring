@@ -4,10 +4,8 @@ import io.grpc.BindableService;
 import io.grpc.MethodDescriptor;
 import io.grpc.ServerMethodDefinition;
 import io.grpc.ServerServiceDefinition;
-import io.grpc.stub.StreamObserver;
 import org.jspecify.annotations.Nullable;
 
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,40 +19,21 @@ public class ConnectServiceRegistry {
             ServerServiceDefinition definition = service.bindService();
             for (ServerMethodDefinition<?, ?> methodDef : definition.getMethods()) {
                 MethodDescriptor<?, ?> descriptor = methodDef.getMethodDescriptor();
-                String fullMethodName = descriptor.getFullMethodName();
                 // fullMethodName is "package.Service/MethodName"
-                String[] parts = fullMethodName.split("/");
-                String methodName = parts[1];
-
-                // Find the corresponding Java method on the service class
-                Method javaMethod = findServiceMethod(service, methodName);
-                if (javaMethod != null) {
-                    methods.put(fullMethodName, new MethodEntry(service, javaMethod, descriptor));
-                }
+                methods.put(descriptor.getFullMethodName(), new MethodEntry(methodDef, descriptor));
             }
         }
-    }
-
-    private @Nullable Method findServiceMethod(BindableService service, String grpcMethodName) {
-        // gRPC method names are PascalCase, Java methods are camelCase
-        String javaName = Character.toLowerCase(grpcMethodName.charAt(0)) + grpcMethodName.substring(1);
-        for (Method m : service.getClass().getMethods()) {
-            if (m.getName().equals(javaName)
-                && m.getParameterCount() == 2
-                && StreamObserver.class.isAssignableFrom(m.getParameterTypes()[1])) {
-                return m;
-            }
-        }
-        return null;
     }
 
     public @Nullable MethodEntry lookup(String serviceName, String methodName) {
         return methods.get(serviceName + "/" + methodName);
     }
 
+    // Holds the real ServerMethodDefinition so dispatch can invoke through its ServerCallHandler
+    // (the same handler a real gRPC server would use), rather than reaching into the service
+    // implementation via reflection.
     public record MethodEntry(
-        BindableService service,
-        Method javaMethod,
+        ServerMethodDefinition<?, ?> methodDefinition,
         MethodDescriptor<?, ?> descriptor
     ) {}
 }

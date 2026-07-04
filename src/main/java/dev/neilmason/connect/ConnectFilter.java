@@ -3,11 +3,13 @@ package dev.neilmason.connect;
 import com.google.protobuf.Any;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
+import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.protobuf.StatusProto;
-import io.grpc.stub.StreamObserver;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -213,6 +215,8 @@ public class ConnectFilter implements WebFilter {
 
         MethodDescriptor<Object, Object> descriptor =
             (MethodDescriptor<Object, Object>) entry.descriptor();
+        ServerCallHandler<Object, Object> handler =
+            (ServerCallHandler<Object, Object>) entry.methodDefinition().getServerCallHandler();
 
         Object requestMessage;
         try {
@@ -229,37 +233,23 @@ public class ConnectFilter implements WebFilter {
             .defaultIfEmpty(new SecurityContextImpl())
             .flatMap(securityContext -> {
                 CompletableFuture<Object> future = new CompletableFuture<>();
-
-                StreamObserver<Object> responseObserver = new StreamObserver<>() {
-                    // Only unset if a misbehaving service calls onCompleted() without onNext() first;
-                    // well-behaved unary gRPC methods always populate this before completing.
-                    private @Nullable Object value;
-
-                    @Override
-                    public void onNext(Object resp) {
-                        this.value = resp;
-                    }
-
-                    @Override
-                    public void onError(Throwable t) {
-                        future.completeExceptionally(t);
-                    }
-
-                    @Override
-                    @SuppressWarnings("DataFlowIssue") // CompletableFuture.complete(null) is well-defined;
-                    // Mono.fromFuture treats a null-valued completion as an empty Mono, not an error.
-                    public void onCompleted() {
-                        future.complete(value);
-                    }
-                };
+                SynthesizedServerCall<Object, Object> call = new SynthesizedServerCall<>(descriptor, future);
 
                 Mono<Object> invocation = Mono.fromCallable(() -> {
                         SecurityContextHolder.setContext(securityContext);
                         try {
-                            entry.javaMethod().invoke(entry.service(), requestMessage, responseObserver);
+                            // Drives the real ServerCallHandler exactly as a real gRPC server would for
+                            // a unary call: startCall() hands back a Listener, which we feed the single
+                            // request message and then half-close, per the ServerCall.Listener contract
+                            // ("onMessage, which is guaranteed before half close"). The generated
+                            // ServerCalls.asyncUnaryCall handler invokes the actual service method from
+                            // onHalfClose() and reports the result back via call.sendMessage()/close(),
+                            // which SynthesizedServerCall translates into the future's completion.
+                            ServerCall.Listener<Object> listener = handler.startCall(call, new Metadata());
+                            listener.onMessage(requestMessage);
+                            listener.onHalfClose();
                         } catch (Exception e) {
-                            Throwable cause = e.getCause() != null ? e.getCause() : e;
-                            future.completeExceptionally(cause);
+                            future.completeExceptionally(e);
                         } finally {
                             SecurityContextHolder.clearContext();
                         }

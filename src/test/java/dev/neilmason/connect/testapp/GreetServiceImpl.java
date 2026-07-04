@@ -9,9 +9,7 @@ import dev.neilmason.connect.test.greet.v1.SayHelloResponse;
 import io.grpc.Status;
 import io.grpc.protobuf.StatusProto;
 import io.grpc.stub.StreamObserver;
-import org.springframework.stereotype.Component;
 
-@Component
 public class GreetServiceImpl extends GreetServiceGrpc.GreetServiceImplBase {
 
     @Override

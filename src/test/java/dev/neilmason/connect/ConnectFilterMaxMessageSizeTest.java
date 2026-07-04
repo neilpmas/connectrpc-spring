@@ -1,29 +1,28 @@
 package dev.neilmason.connect;
 
 import dev.neilmason.connect.test.greet.v1.SayHelloRequest;
-import dev.neilmason.connect.testapp.TestApplication;
+import dev.neilmason.connect.testapp.GreetServiceImpl;
+import io.grpc.BindableService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.util.unit.DataSize;
 
-@SpringBootTest(
-    classes = TestApplication.class,
-    webEnvironment = SpringBootTest.WebEnvironment.MOCK,
-    properties = "connect.max-message-size=10B"
-)
+import java.util.List;
+
 class ConnectFilterMaxMessageSizeTest {
 
     private static final MediaType APPLICATION_PROTO = MediaType.parseMediaType("application/proto");
 
-    @Autowired
-    private ApplicationContext applicationContext;
-
     @Test
     void oversizedRequest_shouldReturn413WithResourceExhaustedCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
+        List<BindableService> services = List.of(new GreetServiceImpl());
+        ConnectServiceRegistry registry = new ConnectServiceRegistry(services);
+        ConnectFilter filter = new ConnectFilter(
+            registry, "/connect", DataSize.ofBytes(10).toBytes(), true, List.of("*"));
+        WebTestClient webTestClient = WebTestClient.bindToWebHandler(exchange -> exchange.getResponse().setComplete())
+            .webFilter(filter)
+            .build();
 
         SayHelloRequest request = SayHelloRequest.newBuilder()
             .setName("a".repeat(100))

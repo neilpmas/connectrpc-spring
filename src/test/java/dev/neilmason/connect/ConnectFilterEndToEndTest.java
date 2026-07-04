@@ -5,33 +5,36 @@ import com.google.protobuf.util.JsonFormat;
 import com.jayway.jsonpath.JsonPath;
 import dev.neilmason.connect.test.greet.v1.SayHelloRequest;
 import dev.neilmason.connect.test.greet.v1.SayHelloResponse;
-import dev.neilmason.connect.testapp.TestApplication;
+import dev.neilmason.connect.testapp.GreetServiceImpl;
+import io.grpc.BindableService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.util.unit.DataSize;
 
 import java.util.Base64;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(
-    classes = TestApplication.class,
-    webEnvironment = SpringBootTest.WebEnvironment.MOCK
-)
 class ConnectFilterEndToEndTest {
 
     private static final MediaType APPLICATION_PROTO = MediaType.parseMediaType("application/proto");
 
-    @Autowired
-    private ApplicationContext applicationContext;
+    private final WebTestClient webTestClient = webTestClient();
+
+    private static WebTestClient webTestClient() {
+        List<BindableService> services = List.of(new GreetServiceImpl());
+        ConnectServiceRegistry registry = new ConnectServiceRegistry(services);
+        ConnectFilter filter = new ConnectFilter(
+            registry, "/connect", DataSize.ofMegabytes(4).toBytes(), true, List.of("*"));
+        return WebTestClient.bindToWebHandler(exchange -> exchange.getResponse().setComplete())
+            .webFilter(filter)
+            .build();
+    }
 
     @Test
     void sayHello_shouldReturnProtobufResponse() throws Exception {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         SayHelloRequest request = SayHelloRequest.newBuilder()
             .setName("World")
             .build();
@@ -55,8 +58,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void sayHello_withJsonContentType_shouldReturnJsonResponse() throws Exception {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         String responseJson = webTestClient
             .post()
             .uri("/connect/greet.v1.GreetService/SayHello")
@@ -77,8 +78,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void malformedJsonBody_shouldReturn400WithInvalidArgumentCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         //language=none
         String malformedJson = "{not valid json";
 
@@ -95,8 +94,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void unsupportedContentType_shouldReturn415() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         webTestClient
             .post()
             .uri("/connect/greet.v1.GreetService/SayHello")
@@ -108,8 +105,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void missingContentType_shouldReturn415() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         webTestClient
             .post()
             .uri("/connect/greet.v1.GreetService/SayHello")
@@ -119,8 +114,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void unknownMethod_shouldReturn404WithUnimplementedCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         webTestClient
             .post()
             .uri("/connect/greet.v1.GreetService/NonExistent")
@@ -134,8 +127,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void resourceExhausted_shouldReturn429WithResourceExhaustedCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         SayHelloRequest request = SayHelloRequest.newBuilder()
             .setName("trigger-resource-exhausted")
             .build();
@@ -154,8 +145,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void validProtocolVersionHeader_shouldStillSucceed() throws Exception {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         SayHelloRequest request = SayHelloRequest.newBuilder()
             .setName("World")
             .build();
@@ -178,8 +167,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void unsupportedProtocolVersion_shouldReturn400WithInvalidArgumentCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         webTestClient
             .post()
             .uri("/connect/greet.v1.GreetService/SayHello")
@@ -194,8 +181,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void malformedTimeoutHeader_shouldReturn400WithInvalidArgumentCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         webTestClient
             .post()
             .uri("/connect/greet.v1.GreetService/SayHello")
@@ -210,8 +195,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void timeoutExceeded_shouldReturn504WithDeadlineExceededCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         webTestClient
             .post()
             .uri("/connect/greet.v1.GreetService/SayHello")
@@ -226,8 +209,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void cancelled_shouldReturn499WithCanceledCode() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         SayHelloRequest request = SayHelloRequest.newBuilder()
             .setName("trigger-cancelled")
             .build();
@@ -246,8 +227,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void corsPreflight_shouldReturn204WithAllowHeaders() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         webTestClient
             .options()
             .uri("/connect/greet.v1.GreetService/SayHello")
@@ -265,8 +244,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void postRequest_shouldIncludeAccessControlAllowOrigin() {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         SayHelloRequest request = SayHelloRequest.newBuilder()
             .setName("World")
             .build();
@@ -284,8 +261,6 @@ class ConnectFilterEndToEndTest {
 
     @Test
     void triggerDetails_shouldReturnUnavailableWithStructuredDetails() throws Exception {
-        WebTestClient webTestClient = WebTestClient.bindToApplicationContext(applicationContext).build();
-
         SayHelloRequest request = SayHelloRequest.newBuilder()
             .setName("trigger-details")
             .build();

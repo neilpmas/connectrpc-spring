@@ -81,13 +81,17 @@ public class ConnectFilter implements WebFilter {
     private final boolean corsEnabled;
     private final List<String> corsAllowedOrigins;
 
-    public ConnectFilter(ConnectServiceRegistry registry, ConnectProperties properties) {
+    public ConnectFilter(
+            ConnectServiceRegistry registry,
+            String pathPrefix,
+            long maxMessageSizeBytes,
+            boolean corsEnabled,
+            List<String> corsAllowedOrigins) {
         this.registry = registry;
-        String prefix = properties.getPathPrefix();
-        this.pathPrefix = prefix.endsWith("/") ? prefix : prefix + "/";
-        this.maxMessageSizeBytes = properties.getMaxMessageSize().toBytes();
-        this.corsEnabled = properties.isCorsEnabled();
-        this.corsAllowedOrigins = properties.getCorsAllowedOrigins();
+        this.pathPrefix = pathPrefix.endsWith("/") ? pathPrefix : pathPrefix + "/";
+        this.maxMessageSizeBytes = maxMessageSizeBytes;
+        this.corsEnabled = corsEnabled;
+        this.corsAllowedOrigins = corsAllowedOrigins;
     }
 
     @Override

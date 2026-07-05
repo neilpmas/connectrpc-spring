@@ -36,6 +36,13 @@
         <grpc.version>1.82.1</grpc.version>
         <protobuf.version>4.35.1</protobuf.version>
         <protobuf-maven-plugin.version>5.1.7</protobuf-maven-plugin.version>
+
+        <!-- Versions verified as a compatible pair from spring-projects/spring-boot's own build
+             (gradle.properties: javaFormatVersion / checkstyleToolVersion), not just latest-of-each,
+             since spring-javaformat-checkstyle wraps specific Checkstyle APIs that can break across
+             major Checkstyle versions. -->
+        <spring-javaformat.version>0.0.47</spring-javaformat.version>
+        <checkstyle.version>10.12.4</checkstyle.version>
     </properties>
 
     <dependencyManagement>
@@ -70,5 +77,61 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <!-- Enforces and can auto-apply Spring's own code formatting conventions, matching
+                 how spring-projects/spring-grpc and spring-projects/spring-boot both do this.
+                 Run `./mvnw spring-javaformat:apply` to auto-format; `validate` (bound below) fails
+                 the build if code doesn't already match. -->
+            <plugin>
+                <groupId>io.spring.javaformat</groupId>
+                <artifactId>spring-javaformat-maven-plugin</artifactId>
+                <version>${spring-javaformat.version}</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>validate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Spring's shared checkstyle ruleset ships inside the spring-javaformat-checkstyle
+                 artifact itself (io/spring/javaformat/checkstyle/checkstyle.xml on its classpath),
+                 so no local checkstyle.xml is needed for these base rules. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.6.0</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>${checkstyle.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>io.spring.javaformat</groupId>
+                        <artifactId>spring-javaformat-checkstyle</artifactId>
+                        <version>${spring-javaformat.version}</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>checkstyle-validation</id>
+                        <phase>validate</phase>
+                        <configuration>
+                            <configLocation>io/spring/javaformat/checkstyle/checkstyle.xml</configLocation>
+                            <consoleOutput>true</consoleOutput>
+                            <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                        </configuration>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

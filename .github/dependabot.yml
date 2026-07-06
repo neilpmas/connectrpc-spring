@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # checkstyle.version and spring-javaformat.version are a manually-verified
+      # compatible pair (see the pom.xml comment) -- spring-javaformat-checkstyle
+      # itself only declares checkstyle:9.3 as its own tested baseline, so neither
+      # version is safe to bump independently without re-verifying the pairing.
+      - dependency-name: "com.puppycrawl.tools:checkstyle"
+      - dependency-name: "io.spring.javaformat:spring-javaformat-checkstyle"
 
   - package-ecosystem: github-actions
     directory: /

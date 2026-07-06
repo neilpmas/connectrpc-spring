@@ -42,7 +42,7 @@
              since spring-javaformat-checkstyle wraps specific Checkstyle APIs that can break across
              major Checkstyle versions. -->
         <spring-javaformat.version>0.0.47</spring-javaformat.version>
-        <checkstyle.version>13.7.0</checkstyle.version>
+        <checkstyle.version>10.12.4</checkstyle.version>
     </properties>
 
     <dependencyManagement>

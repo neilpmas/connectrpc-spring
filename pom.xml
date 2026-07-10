@@ -26,6 +26,18 @@
         <!-- <module>samples</module> -->
     </modules>
 
+    <!-- Stopgap for dogfooding (Phase 5.2): GitHub Packages, not Maven Central yet. No
+         Sonatype namespace verification or GPG signing needed; consumers authenticate with a
+         PAT, which is fine for our own downstream apps but not for public/anonymous consumers
+         (that's what the real Phase 8 Maven Central publish is for). -->
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/neilpmas/connectrpc-spring</url>
+        </repository>
+    </distributionManagement>
+
     <properties>
         <java.version>24</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>

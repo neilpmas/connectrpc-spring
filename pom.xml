@@ -39,7 +39,10 @@
     </distributionManagement>
 
     <properties>
-        <java.version>24</java.version>
+        <!-- Matches Spring Boot's own RUNTIME_JAVA_VERSION baseline (JavaConventions.java
+             in the spring-boot build) so published artifacts work for any Boot-compatible
+             consumer, not just those on the same JDK this repo happens to build with. -->
+        <java.version>17</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 

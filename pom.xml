@@ -19,6 +19,20 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>Neil Mason</name>
+            <email>neilpmas@gmail.com</email>
+            <url>https://github.com/neilpmas</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/neilpmas/connectrpc-spring.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/neilpmas/connectrpc-spring.git</developerConnection>
+        <url>https://github.com/neilpmas/connectrpc-spring</url>
+    </scm>
+
     <modules>
         <module>connectrpc-spring-core</module>
         <module>connectrpc-spring-dependencies</module>
@@ -148,5 +162,80 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- Sources/javadoc jars, GPG signing, and the Central Portal upload only run under
+         -Prelease, since Central requires them on every deployed artifact, but they'd only
+         slow down and add noise to the everyday mvn test/verify loop. Activated by the
+         release workflow, not by local dev builds. -->
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.11.2</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <!-- Non-interactive signing (CI, and this repo's own sandboxed shell
+                                 have no tty for gpg's normal pinentry prompt), needed since the
+                                 passphrase itself comes from the gpg.passphrase property, never
+                                 hardcoded here. -->
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.11.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

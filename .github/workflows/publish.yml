@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
 
     steps:
       - uses: actions/checkout@v7
@@ -21,9 +20,9 @@ jobs:
           cache: 'maven'
 
       # actions/setup-java's own server-id/server-username/server-password inputs only write
-      # one <server> entry -- this repo now needs two (github, central), so the whole
-      # settings.xml is written here instead. Values are env var references, same pattern as
-      # the local ~/.m2/settings.xml -- never a literal secret in a file.
+      # one <server> entry, which is now all this needs (GitHub Packages retired --
+      # task-connectrpc-spring-boot-starter Phase 8.5). Values are env var references, same
+      # pattern as the local ~/.m2/settings.xml -- never a literal secret in a file.
       - name: Write Maven settings.xml
         run: |
           mkdir -p ~/.m2
@@ -31,11 +30,6 @@ jobs:
           <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
               xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
               <servers>
-                  <server>
-                      <id>github</id>
-                      <username>${env.GITHUB_ACTOR}</username>
-                      <password>${env.GITHUB_TOKEN}</password>
-                  </server>
                   <server>
                       <id>central</id>
                       <username>${env.CENTRAL_TOKEN_USERNAME}</username>
@@ -56,14 +50,12 @@ jobs:
       - name: Set version from release tag
         run: ./mvnw --batch-mode versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DprocessAllModules=true -DgenerateBackupPoms=false
 
-      # -Prelease also signs and publishes to Maven Central (task-connectrpc-spring-boot-starter
-      # Phase 8), alongside the plain deploy's GitHub Packages push -- both stay live for one
-      # release cycle after this lands, until every consumer has migrated off GitHub Packages.
-      - name: Publish to GitHub Packages and Maven Central
+      # -Prelease signs and publishes to Maven Central (task-connectrpc-spring-boot-starter
+      # Phase 8). GitHub Packages retired in Phase 8.5 once both known consumers had migrated
+      # off it -- maven.deploy.skip in pom.xml keeps the plain deploy phase a no-op here.
+      - name: Publish to Maven Central
         run: ./mvnw --batch-mode -Prelease deploy -DskipTests -Dgpg.passphrase="$GPG_PASSPHRASE"
         env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}

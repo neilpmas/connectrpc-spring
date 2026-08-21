@@ -40,23 +40,19 @@
         <!-- <module>samples</module> -->
     </modules>
 
-    <!-- Stopgap for dogfooding (Phase 5.2): GitHub Packages, not Maven Central yet. No
-         Sonatype namespace verification or GPG signing needed; consumers authenticate with a
-         PAT, which is fine for our own downstream apps but not for public/anonymous consumers
-         (that's what the real Phase 8 Maven Central publish is for). -->
-    <distributionManagement>
-        <repository>
-            <id>github</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/neilpmas/connectrpc-spring</url>
-        </repository>
-    </distributionManagement>
-
     <properties>
         <!-- Matches Spring Boot's own RUNTIME_JAVA_VERSION baseline (JavaConventions.java
              in the spring-boot build) so published artifacts work for any Boot-compatible
              consumer, not just those on the same JDK this repo happens to build with. -->
         <java.version>17</java.version>
+
+        <!-- GitHub Packages retired (task-connectrpc-spring-boot-starter Phase 8.5): both known
+             consumers have migrated to Maven Central, so there's no distributionManagement
+             repository left for the default maven-deploy-plugin to target. Skip it rather than
+             have `mvn deploy` fail on a missing distributionManagement; the release profile's
+             central-publishing-maven-plugin handles the real Central publish itself,
+             independent of this. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 

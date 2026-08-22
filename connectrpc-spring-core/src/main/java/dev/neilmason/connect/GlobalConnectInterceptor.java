@@ -22,10 +22,18 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-// Marks a bean (or @Bean method) as an io.grpc.ServerInterceptor that should be applied to every
-// dispatched call, mirroring spring-grpc-core's @GlobalServerInterceptor
-// (org.springframework.grpc.server.GlobalServerInterceptor): a pure marker with no members. Bean
-// discovery happens in ConnectServiceRegistry via ApplicationContext.getBeansWithAnnotation().
+/**
+ * Marks a bean (or {@code @Bean} method) as an {@link io.grpc.ServerInterceptor} that
+ * should be applied to every method dispatched through a {@link ConnectServiceRegistry},
+ * ordered via {@code @Order}/{@link org.springframework.core.Ordered} where multiple are
+ * present.
+ *
+ * <p>
+ * Mirrors spring-grpc-core's {@code @GlobalServerInterceptor}
+ * ({@code org.springframework.grpc.server.GlobalServerInterceptor}).
+ *
+ * @author Neil Mason
+ */
 @Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 @Documented

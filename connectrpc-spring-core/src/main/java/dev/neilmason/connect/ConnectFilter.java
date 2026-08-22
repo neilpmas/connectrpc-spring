@@ -55,6 +55,20 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 
+/**
+ * A {@link WebFilter} that serves the <a href="https://connectrpc.com">Connect
+ * protocol</a> for every gRPC method registered in a {@link ConnectServiceRegistry}.
+ *
+ * <p>
+ * Matches unary {@code POST} requests under the configured path prefix, decodes the
+ * request body as either Protobuf binary or JSON depending on {@code Content-Type}, and
+ * dispatches it through the method's real {@link io.grpc.ServerCallHandler} via
+ * {@link SynthesizedServerCall} -- the same code path a native gRPC server would use,
+ * including any {@link GlobalConnectInterceptor} beans. Requests outside the configured
+ * path prefix are passed through to the rest of the filter chain unchanged.
+ *
+ * @author Neil Mason
+ */
 public class ConnectFilter implements WebFilter {
 
 	private static final MediaType APPLICATION_PROTO = MediaType.parseMediaType("application/proto");
@@ -113,6 +127,17 @@ public class ConnectFilter implements WebFilter {
 
 	private final List<String> corsAllowedOrigins;
 
+	/**
+	 * Creates a filter dispatching to the methods in {@code registry}.
+	 * @param registry the services and methods this filter serves
+	 * @param pathPrefix the path prefix Connect requests are matched under, e.g.
+	 * {@code /connect}
+	 * @param maxMessageSizeBytes the maximum request body size accepted, in bytes; larger
+	 * bodies are rejected with {@code resource_exhausted}
+	 * @param corsEnabled whether to handle CORS preflight requests and set
+	 * {@code Access-Control-Allow-Origin} on responses
+	 * @param corsAllowedOrigins the allowed CORS origins; {@code "*"} allows any origin
+	 */
 	public ConnectFilter(ConnectServiceRegistry registry, String pathPrefix, long maxMessageSizeBytes,
 			boolean corsEnabled, List<String> corsAllowedOrigins) {
 		this.registry = registry;

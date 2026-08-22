@@ -14,5 +14,9 @@
  * limitations under the License.
  */
 
+/**
+ * Serves the <a href="https://connectrpc.com">Connect protocol</a> from existing gRPC
+ * service definitions on plain Spring WebFlux, with no changes to the service itself.
+ */
 @org.jspecify.annotations.NullMarked
 package dev.neilmason.connect;

@@ -32,10 +32,21 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 
+/**
+ * Indexes a set of {@link BindableService} beans by their Connect protocol method path
+ * ({@code package.Service/MethodName}), so {@link ConnectFilter} can look up the real
+ * {@link ServerMethodDefinition} for an incoming request.
+ *
+ * @author Neil Mason
+ */
 public class ConnectServiceRegistry {
 
 	private final Map<String, MethodEntry> methods = new ConcurrentHashMap<>();
 
+	/**
+	 * Creates a registry indexing {@code services}, with no interceptors applied.
+	 * @param services the services to index
+	 */
 	public ConnectServiceRegistry(List<BindableService> services) {
 		this(services, List.of());
 	}
@@ -47,6 +58,13 @@ public class ConnectServiceRegistry {
 	// respecting
 	// @Order/Ordered via AnnotationAwareOrderComparator, the same utility Spring's real
 	// implementation uses for this.
+	/**
+	 * Creates a registry indexing {@code services}, wrapping each with every
+	 * {@link GlobalConnectInterceptor}-annotated {@link ServerInterceptor} bean found in
+	 * {@code applicationContext}.
+	 * @param services the services to index
+	 * @param applicationContext the context to discover global interceptor beans from
+	 */
 	public ConnectServiceRegistry(List<BindableService> services, ApplicationContext applicationContext) {
 		this(services, findGlobalInterceptors(applicationContext));
 	}
@@ -81,15 +99,26 @@ public class ConnectServiceRegistry {
 		return interceptors;
 	}
 
+	/**
+	 * Looks up the method registered for a given service and method name.
+	 * @param serviceName the fully-qualified gRPC service name, e.g.
+	 * {@code greeting.v1.GreetingService}
+	 * @param methodName the method name, e.g. {@code Greet}
+	 * @return the matching entry, or {@code null} if no such method is registered
+	 */
 	public @Nullable MethodEntry lookup(String serviceName, String methodName) {
 		return this.methods.get(serviceName + "/" + methodName);
 	}
 
-	// Holds the real ServerMethodDefinition so dispatch can invoke through its
-	// ServerCallHandler
-	// (the same handler a real gRPC server would use), rather than reaching into the
-	// service
-	// implementation via reflection.
+	/**
+	 * Holds the real {@link ServerMethodDefinition} so dispatch can invoke through its
+	 * {@link io.grpc.ServerCallHandler} (the same handler a real gRPC server would use),
+	 * rather than reaching into the service implementation via reflection.
+	 *
+	 * @param methodDefinition the method's real gRPC definition, interceptors already
+	 * applied
+	 * @param descriptor the method's descriptor, used for request/response marshalling
+	 */
 	public record MethodEntry(ServerMethodDefinition<?, ?> methodDefinition, MethodDescriptor<?, ?> descriptor) {
 	}
 

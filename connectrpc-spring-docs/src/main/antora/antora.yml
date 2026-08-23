@@ -6,8 +6,28 @@ nav:
 ext:
   collector:
     - run:
-        command: mvnw package -P javadoc -DskipTests
-        local: true
+        - command: mvnw package -P javadoc -DskipTests
+          local: true
+        # connectrpc-spring-boot is a separate repo on a separate build tool (Gradle), so there's
+        # no single-reactor aggregate javadoc possible the way there is for connectrpc-spring-core
+        # above (task-connectrpc-spring-boot-starter Phase 6.2.2). Fetching the already-published
+        # javadoc jars from Maven Central instead of building from source: the reference docs
+        # site should reflect released, published behavior anyway, and this needs no new tooling
+        # in the other repo at all. Kept as two separate javadoc trees, not merged into one --
+        # each javadoc run generates its own index/search files, so naively copying both into one
+        # directory would silently break (or just overwrite) the other's index.
+        - command: >-
+            mkdir -p connectrpc-spring-docs/target/reports/apidocs-boot &&
+            curl -sL -o /tmp/connectrpc-spring-boot-javadoc.jar
+            https://repo1.maven.org/maven2/dev/neilmason/connectrpc-spring-boot/0.2.1/connectrpc-spring-boot-0.2.1-javadoc.jar &&
+            (cd connectrpc-spring-docs/target/reports/apidocs-boot && jar xf /tmp/connectrpc-spring-boot-javadoc.jar)
+          shell: true
+        - command: >-
+            mkdir -p connectrpc-spring-docs/target/reports/apidocs-boot-test &&
+            curl -sL -o /tmp/connectrpc-spring-boot-test-javadoc.jar
+            https://repo1.maven.org/maven2/dev/neilmason/connectrpc-spring-boot-test/0.2.1/connectrpc-spring-boot-test-0.2.1-javadoc.jar &&
+            (cd connectrpc-spring-docs/target/reports/apidocs-boot-test && jar xf /tmp/connectrpc-spring-boot-test-javadoc.jar)
+          shell: true
       scan:
         - dir: connectrpc-spring-docs/target/classes/antora-resources
         # target/reports/apidocs, not target/site/apidocs -- this Maven's maven-javadoc-plugin
@@ -15,3 +35,7 @@ ext:
         # against the real aggregate output rather than copied blind from the reference repo.
         - dir: target/reports/apidocs/
           into: modules/ROOT/assets/attachments/api/java
+        - dir: connectrpc-spring-docs/target/reports/apidocs-boot/
+          into: modules/ROOT/assets/attachments/api/java-boot
+        - dir: connectrpc-spring-docs/target/reports/apidocs-boot-test/
+          into: modules/ROOT/assets/attachments/api/java-boot-test

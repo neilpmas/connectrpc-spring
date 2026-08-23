@@ -17,7 +17,7 @@
         <!-- Node for frontend-maven-plugin (downdoc). Sync engines.node in package.json when
              bumping. -->
         <nodejs.docs.version>v24.15.0</nodejs.docs.version>
-        <maven-frontend-plugin.version>1.15.1</maven-frontend-plugin.version>
+        <maven-frontend-plugin.version>2.0.2</maven-frontend-plugin.version>
         <maven-gem-plugin.version>3.0.6</maven-gem-plugin.version>
         <jruby.version>9.4.6.0</jruby.version>
     </properties>

@@ -3,3 +3,11 @@
 Reference documentation for `connectrpc-spring`, which serves the https://connectrpc.com[Connect protocol] from existing gRPC service definitions on plain Spring WebFlux -- no code changes to the service itself.
 
 Real content for this page -- getting started, configuration reference, the "why not gRPC-Web" explainer -- is still to come (task-connectrpc-spring-boot-starter Phase 6.3/6.4). In the meantime, see the https://github.com/neilpmas/gs-connect-rpc[`gs-connect-rpc`] getting-started guide.
+
+== API Reference
+
+Kept as three separate Javadoc trees, not one merged index: `connectrpc-spring-boot` is a separate repo on a separate build tool, so there's no single aggregate javadoc run spanning all three the way there is within `connectrpc-spring` itself.
+
+* link:api/java/index.html[connectrpc-spring (core)]
+* link:api/java-boot/index.html[connectrpc-spring-boot]
+* link:api/java-boot-test/index.html[connectrpc-spring-boot-test]

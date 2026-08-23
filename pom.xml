@@ -69,7 +69,7 @@
         <spring-javaformat.version>0.0.47</spring-javaformat.version>
         <checkstyle.version>10.12.4</checkstyle.version>
 
-        <maven-javadoc-plugin.version>3.11.2</maven-javadoc-plugin.version>
+        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
 
         <!-- connectrpc-spring-docs (task-connectrpc-spring-boot-starter Phase 6.2): versions
              verified against reference-spring-grpc's real spring-grpc-docs setup, not guessed.

@@ -36,7 +36,7 @@
     <modules>
         <module>connectrpc-spring-core</module>
         <module>connectrpc-spring-dependencies</module>
-        <!-- <module>connectrpc-spring-docs</module> -->
+        <module>connectrpc-spring-docs</module>
         <!-- <module>samples</module> -->
     </modules>
 
@@ -68,6 +68,16 @@
              major Checkstyle versions. -->
         <spring-javaformat.version>0.0.47</spring-javaformat.version>
         <checkstyle.version>10.12.4</checkstyle.version>
+
+        <maven-javadoc-plugin.version>3.11.2</maven-javadoc-plugin.version>
+
+        <!-- connectrpc-spring-docs (task-connectrpc-spring-boot-starter Phase 6.2): versions
+             verified against reference-spring-grpc's real spring-grpc-docs setup, not guessed.
+             All confirmed public on Maven Central, unlike some of Spring's own internal-only
+             build tooling found in Phase 8. -->
+        <antora.maven.plugin.version>1.0.0-alpha.5</antora.maven.plugin.version>
+        <io.spring.maven.antora-version>0.0.4</io.spring.maven.antora-version>
+        <maven-assembly-plugin.version>3.7.0</maven-assembly-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -149,6 +159,19 @@
                             <configLocation>io/spring/javaformat/checkstyle/checkstyle.xml</configLocation>
                             <consoleOutput>true</consoleOutput>
                             <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                            <!-- Generated protobuf sources aren't hand-written code; don't lint
+                                 them, matching connectrpc-spring-boot's equivalent Gradle
+                                 exclusion. Only surfaced by connectrpc-spring-docs' Antora
+                                 collector: its `mvnw package -P javadoc` forks a second build of
+                                 each module (maven-javadoc-plugin:aggregate needs compiled
+                                 sources), and that second pass runs checkstyle after protobuf
+                                 test-source generation has already happened, unlike a normal
+                                 single build. A glob exclude doesn't work here: checkstyle
+                                 matches paths relative to each registered source root, and the
+                                 generated directory itself IS the root, so its own name never
+                                 appears in the relative path being matched. Restricting the
+                                 scanned test source root instead is deterministic. -->
+                            <testSourceDirectories>${project.basedir}/src/test/java</testSourceDirectories>
                         </configuration>
                         <goals>
                             <goal>check</goal>
@@ -184,7 +207,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.11.2</version>
+                        <version>${maven-javadoc-plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>attach-javadocs</id>
@@ -228,6 +251,41 @@
                             <autoPublish>true</autoPublish>
                             <waitUntil>published</waitUntil>
                         </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Aggregates every reactor module's public API into one root-level target/site/apidocs
+             site, matching reference-spring-grpc's real root pom.xml exactly. Consumed by
+             connectrpc-spring-docs' Antora collector (via `mvnw package -P javadoc -DskipTests`),
+             not activated by everyday builds. -->
+        <profile>
+            <id>javadoc</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>${maven-javadoc-plugin.version}</version>
+                        <configuration>
+                            <overview>${project.basedir}/connectrpc-spring-docs/src/main/javadoc/overview.html</overview>
+                            <detectJavaApiLink>false</detectJavaApiLink>
+                            <doclint>none</doclint>
+                            <quiet>true</quiet>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>generate-aggregate-javadocs</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>aggregate</goal>
+                                </goals>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

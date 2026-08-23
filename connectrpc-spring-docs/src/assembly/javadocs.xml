@@ -1,0 +1,19 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.1.0"
+		  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		  xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.1.0 http://maven.apache.org/xsd/assembly-2.1.0.xsd">
+	<id>docs</id>
+	<formats>
+		<format>zip</format>
+	</formats>
+	<includeBaseDirectory>false</includeBaseDirectory>
+	<fileSets>
+		<!-- ../target/reports/apidocs, not ../target/site/apidocs: reference-spring-grpc's real
+			 assembly descriptor uses the older path, but this Maven's maven-javadoc-plugin
+			 defaults project.reporting.outputDirectory to target/reports, not target/site.
+			 Verified directly by inspecting the actual aggregate output, not guessed. -->
+		<fileSet>
+			<directory>../target/reports/apidocs</directory>
+			<outputDirectory>api</outputDirectory>
+		</fileSet>
+	</fileSets>
+</assembly>

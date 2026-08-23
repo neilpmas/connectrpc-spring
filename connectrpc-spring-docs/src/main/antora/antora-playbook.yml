@@ -1,0 +1,60 @@
+# npm + Antora CLI versions: connectrpc-spring-docs/package.json. Node toolchain version:
+# pom.xml nodejs.docs.version (match engines.node).
+#
+# The purpose of this Antora playbook is to build the docs in the current branch.
+antora:
+  # Individual extensions, not the whole '@springio/antora-extensions' bundle -- that bundle
+  # unconditionally injects a "Spring Projects" static page (static-page-extension.js) with no
+  # opt-out, plus Algolia search env wiring and Spring's own CI partial-build logic, none of
+  # which apply to a non-Spring project. Only the pieces this playbook actually needs (task-
+  # connectrpc-spring-boot-starter Phase 6.2), verified directly against the package's own
+  # lib/index.js and each extension's source, not guessed.
+  extensions:
+  - require: '@springio/antora-extensions/inject-collector-cache-config-extension'
+  - require: '@antora/collector-extension'
+  - require: '@springio/antora-extensions/root-component-extension'
+    root_component_name: 'connect'
+  - require: '@springio/antora-extensions/root-attachments-extension'
+site:
+  title: connectrpc-spring Reference
+  # Placeholder until real hosting is decided (task-connectrpc-spring-boot-starter Phase 6.5) --
+  # @springio/antora-extensions' collector cache config requires *some* site.url to be set, even
+  # for a local build. A standard, zero-cost GitHub Pages URL, not a live site yet.
+  url: https://neilpmas.github.io/connectrpc-spring
+  robots: allow
+git:
+  ensure_git_suffix: false
+content:
+  sources:
+    - url: ./../../../..
+      branches: [main]
+      start_path: connectrpc-spring-docs/src/main/antora
+      worktrees: true
+asciidoc:
+  attributes:
+    page-pagination: ''
+    hide-uri-scheme: '@'
+    tabs-sync-option: '@'
+    chomp: 'all'
+  extensions:
+  - '@asciidoctor/tabs'
+  - '@springio/asciidoctor-extensions'
+  - '@springio/asciidoctor-extensions/javadoc-extension'
+  sourcemap: true
+urls:
+  latest_version_segment_strategy: redirect:to
+  latest_version_segment: ''
+  redirect_facility: httpd
+runtime:
+  log:
+    failure_level: warn
+    format: pretty
+# Uses Antora's own default UI, not spring-io/antora-ui-spring -- this project isn't a Spring
+# project, and using Spring's actual branded UI (their logo, colors) would misrepresent an
+# affiliation that doesn't exist. Real, deliberate deviation from the reference-spring-grpc
+# precedent (task-connectrpc-spring-boot-starter Phase 6.2), matching this project's earlier
+# trademark research on the "Spring" naming convention.
+ui:
+  bundle:
+    url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/master/raw/build/ui-bundle.zip?job=bundle-stable
+    snapshot: true

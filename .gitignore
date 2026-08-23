@@ -1,5 +1,11 @@
 target/
 
+### connectrpc-spring-docs (Node/npm for Antora) ###
+node
+node_modules
+package-lock.json
+package.json
+
 ### IDE ###
 .idea/
 *.iml

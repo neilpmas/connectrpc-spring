@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.neilmason</groupId>
+        <artifactId>connectrpc-spring</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>connectrpc-spring-docs</artifactId>
+    <name>connectrpc-spring Docs</name>
+    <description>connectrpc-spring reference documentation</description>
+
+    <properties>
+        <!-- Node for frontend-maven-plugin (downdoc). Sync engines.node in package.json when
+             bumping. -->
+        <nodejs.docs.version>v24.15.0</nodejs.docs.version>
+        <maven-frontend-plugin.version>1.15.1</maven-frontend-plugin.version>
+        <maven-gem-plugin.version>3.0.3</maven-gem-plugin.version>
+        <jruby.version>9.4.6.0</jruby.version>
+    </properties>
+
+    <!-- Dependency used by the asciidoctor-reducer gem below -->
+    <dependencies>
+        <dependency>
+            <groupId>rubygems</groupId>
+            <artifactId>asciidoctor-reducer</artifactId>
+            <version>1.0.6</version>
+            <type>gem</type>
+        </dependency>
+    </dependencies>
+
+    <!-- Not a real Java module: no source, nothing for spring-javaformat/checkstyle to check.
+         reference-spring-grpc's parent parameterizes its format/checkstyle plugin executions
+         with a disable.*.checks property so a module like this one can opt out; this repo's
+         root pom binds them unconditionally, so they're skipped locally here instead. -->
+    <build>
+        <extensions>
+            <extension>
+                <groupId>org.jruby.maven</groupId>
+                <artifactId>mavengem-wagon</artifactId>
+                <version>2.0.2</version>
+            </extension>
+        </extensions>
+        <plugins>
+            <plugin>
+                <groupId>io.spring.javaformat</groupId>
+                <artifactId>spring-javaformat-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.antora</groupId>
+                <artifactId>antora-maven-plugin</artifactId>
+                <version>${antora.maven.plugin.version}</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <!-- npm + Antora CLI versions: package.json only
+                         (https://docs.antora.org/maven-plugin/latest/packages/). -->
+                    <playbookFile>src/main/antora/antora-playbook.yml</playbookFile>
+                    <nodeVersion>${nodejs.docs.version}</nodeVersion>
+                    <nodeInstallDirectory>${project.basedir}</nodeInstallDirectory>
+                    <options>
+                        <option>to-dir ${project.build.directory}/antora/site</option>
+                        <option>stacktrace</option>
+                    </options>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>io.spring.maven.antora</groupId>
+                <artifactId>antora-component-version-maven-plugin</artifactId>
+                <version>${io.spring.maven.antora-version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>antora-component-version</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jruby.maven</groupId>
+                <artifactId>gem-maven-plugin</artifactId>
+                <version>${maven-gem-plugin.version}</version>
+                <configuration>
+                    <jrubyVersion>${jruby.version}</jrubyVersion>
+                    <gemHome>${project.build.directory}/gems</gemHome>
+                    <gemPath>${project.build.directory}/gems</gemPath>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>install-gems</id>
+                        <goals>
+                            <goal>initialize</goal>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>compile</phase>
+                        <configuration>
+                            <execArgs>${project.build.directory}/gems/bin/asciidoctor-reducer -o
+                                ${project.build.directory}/README.adoc
+                                ${basedir}/src/main/antora/modules/ROOT/pages/README.adoc</execArgs>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-contributing</id>
+                        <goals>
+                            <goal>initialize</goal>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>compile</phase>
+                        <configuration>
+                            <execArgs>
+                                ${project.build.directory}/gems/bin/asciidoctor-reducer -o
+                                ${project.build.directory}/CONTRIBUTING.adoc
+                                ${basedir}/src/main/antora/modules/ROOT/pages/contribution-guidelines.adoc</execArgs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${maven-frontend-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>install node and npm</id>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                        <phase>generate-resources</phase>
+                    </execution>
+                    <execution>
+                        <id>generate-readme</id>
+                        <goals>
+                            <goal>npx</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <arguments>downdoc ${project.build.directory}/README.adoc -o
+                                ${project.parent.basedir}/README.md</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-contributing</id>
+                        <goals>
+                            <goal>npx</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <arguments>downdoc ${project.build.directory}/CONTRIBUTING.adoc -o
+                                ${project.parent.basedir}/CONTRIBUTING.md</arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- Match Node version used by org.antora:antora-maven-plugin -->
+                    <nodeVersion>${nodejs.docs.version}</nodeVersion>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- Aggregate javadoc for the reference docs site, wired from the root pom's javadoc
+             profile (mvnw package -P javadoc) into this module's Antora collector; separate
+             from the -Prelease javadoc jar attached to each published artifact. -->
+        <profile>
+            <id>javadoc</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <version>${maven-assembly-plugin.version}</version>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>src/assembly/javadocs.xml</descriptor>
+                            </descriptors>
+                            <finalName>connectrpc-spring-${project.version}</finalName>
+                            <appendAssemblyId>true</appendAssemblyId>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>make-assembly</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <repositories>
+        <repository>
+            <id>mavengems</id>
+            <url>mavengem:https://rubygems.org</url>
+        </repository>
+    </repositories>
+
+</project>

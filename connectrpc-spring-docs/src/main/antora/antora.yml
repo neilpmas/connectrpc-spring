@@ -1,0 +1,17 @@
+name: connect
+version: true
+title: connectrpc-spring
+nav:
+  - modules/ROOT/nav.adoc
+ext:
+  collector:
+    - run:
+        command: mvnw package -P javadoc -DskipTests
+        local: true
+      scan:
+        - dir: connectrpc-spring-docs/target/classes/antora-resources
+        # target/reports/apidocs, not target/site/apidocs -- this Maven's maven-javadoc-plugin
+        # defaults project.reporting.outputDirectory to target/reports, verified directly
+        # against the real aggregate output rather than copied blind from the reference repo.
+        - dir: target/reports/apidocs/
+          into: modules/ROOT/assets/attachments/api/java

@@ -18,7 +18,7 @@
              bumping. -->
         <nodejs.docs.version>v24.15.0</nodejs.docs.version>
         <maven-frontend-plugin.version>1.15.1</maven-frontend-plugin.version>
-        <maven-gem-plugin.version>3.0.3</maven-gem-plugin.version>
+        <maven-gem-plugin.version>3.0.6</maven-gem-plugin.version>
         <jruby.version>9.4.6.0</jruby.version>
     </properties>
 

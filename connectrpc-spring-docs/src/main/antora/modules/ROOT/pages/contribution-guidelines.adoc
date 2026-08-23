@@ -1,0 +1,25 @@
+= Contributing
+
+== Setup
+
+[source,sh]
+----
+git clone https://github.com/neilpmas/connectrpc-spring.git
+cd connectrpc-spring
+./mvnw verify
+----
+
+== Development
+
+[source,sh]
+----
+./mvnw test     # run tests
+./mvnw verify   # full build, including checkstyle
+----
+
+== Submitting a PR
+
+. Fork the repo
+. Create a branch: `git checkout -b my-fix`
+. Make your changes — tests must pass and checkstyle must be clean
+. Open a pull request against `main`

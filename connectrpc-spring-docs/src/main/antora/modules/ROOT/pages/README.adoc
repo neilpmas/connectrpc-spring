@@ -1,0 +1,28 @@
+= connectrpc-spring
+
+image:https://github.com/neilpmas/connectrpc-spring/actions/workflows/ci.yml/badge.svg[CI,link=https://github.com/neilpmas/connectrpc-spring/actions/workflows/ci.yml]
+
+Serves the https://connectrpc.com[Connect protocol] from your existing gRPC service definitions, on plain Spring WebFlux — no code changes to the service itself. Connect is wire-compatible with ordinary HTTP, so a browser `fetch()` or a plain `curl` can call a gRPC service directly, without a gRPC-Web proxy or a hand-written REST controller.
+
+This is the framework-agnostic core, with no Spring Boot dependency, mirroring https://github.com/spring-projects/spring-grpc[`spring-grpc`]'s real split between its core and Boot integration. Most users building a Spring Boot application want the autoconfigured starter instead: https://github.com/neilpmas/connectrpc-spring-boot[`connectrpc-spring-boot`].
+
+== Install
+
+[source,xml]
+----
+<dependency>
+    <groupId>dev.neilmason</groupId>
+    <artifactId>connectrpc-spring-core</artifactId>
+    <version>0.1.2</version>
+</dependency>
+----
+
+Available on https://central.sonatype.com/artifact/dev.neilmason/connectrpc-spring-core[Maven Central].
+
+== Getting Started
+
+The https://github.com/neilpmas/gs-connect-rpc[`gs-connect-rpc`] guide walks through adding the Spring Boot starter to an existing gRPC service and calling it over HTTP in about 15 minutes.
+
+== License
+
+link:LICENSE[Apache License, Version 2.0]

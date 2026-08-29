@@ -1,0 +1,50 @@
+[[configuration-properties]]
+= Configuration Properties
+
+All properties are under the `connect` prefix. Hand-maintained here rather than generated -- `connectrpc-spring`'s property surface is small enough that a generator (the way `spring-grpc-docs` produces this page from `ConfigurationPropertiesAsciidocGenerator`) isn't yet worth the build-time cost.
+
+== `ConnectProperties`
+
+Declared on `dev.neilmason.boot.connect.ConnectProperties`, bound from the `connect` prefix:
+
+[cols="1,1,2"]
+|===
+|Property |Default |Description
+
+|`connect.enabled`
+|`true`
+|Whether to serve the Connect protocol at all.
+
+|`connect.path-prefix`
+|`/connect`
+|Path prefix Connect requests are served under.
+
+|`connect.max-message-size`
+|`4MB`
+|Maximum accepted request body size, as a https://docs.spring.io/spring-boot/appendix/application-properties/index.html#appendix.application-properties.data-format[`DataSize`] (e.g. `10MB`).
+
+|`connect.cors-enabled`
+|`true`
+|Whether to handle CORS preflight requests and set `Access-Control-Allow-Origin` on responses.
+
+|`connect.cors-allowed-origins`
+|`*`
+|Comma-separated list of allowed CORS origins. `*` allows any origin.
+|===
+
+== Feature toggles
+
+These aren't backed by a `@ConfigurationProperties` field -- each is a plain `@ConditionalOnProperty` check on its own autoconfiguration class, so they won't show up in IDE property completion, but they work the same way:
+
+[cols="1,1,2"]
+|===
+|Property |Default |Description
+
+|`connect.health.enabled`
+|`true`
+|Whether `ConnectHealthAutoConfiguration` registers the standard `grpc.health.v1.Health` service. Only takes effect if `io.grpc:grpc-services` is on the classpath. See xref:health.adoc[Health].
+
+|`connect.observation.enabled`
+|`true`
+|Whether `ConnectObservationAutoConfiguration` registers Micrometer's `ObservationGrpcServerInterceptor` as a `@GlobalConnectInterceptor`. Only takes effect if an `ObservationRegistry` bean is already present.
+|===

@@ -1,0 +1,10 @@
+[[system-requirements]]
+= System Requirements
+
+`connectrpc-spring` and `connectrpc-spring-boot` require:
+
+* https://www.java.com[Java 17] or above
+* https://docs.spring.io/spring-framework/reference[Spring Framework] `7.0` or above
+* For `connectrpc-spring-boot`: https://spring.io/projects/spring-boot[Spring Boot] `4.1` or above
+
+`connectrpc-spring-core` has no Spring Boot dependency at all -- it only needs Spring Framework and a reactive (WebFlux) web application. Most users building a Spring Boot application want `connectrpc-spring-boot` instead, which pulls in `connectrpc-spring-core` transitively.

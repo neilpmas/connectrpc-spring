@@ -1,0 +1,15 @@
+[[health]]
+= Health
+
+`connectrpc-spring-boot` autoconfigures the standard https://grpc.io/docs/guides/health-checking/[gRPC Health service] via `ConnectHealthAutoConfiguration`. A `HealthStatusManager` bean is provided, which you can use to update the health status of your own services.
+
+IMPORTANT: The health service lives in `io.grpc:grpc-services`, which is not pulled in transitively by the starter. Add it explicitly to your application for this autoconfiguration to activate.
+
+Once `io.grpc:grpc-services` is on the classpath, the health service is enabled by default -- unlike `spring-grpc`'s equivalent, there's no conditional based on whether any other `BindableService` beans are present. Disable it explicitly with:
+
+[source,properties]
+----
+connect.health.enabled=false
+----
+
+See xref:configuration-properties.adoc[Configuration Properties] for the full property reference.

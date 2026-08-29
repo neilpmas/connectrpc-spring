@@ -1,0 +1,67 @@
+[[getting-started]]
+= Getting Started
+
+This section walks through making an existing gRPC service callable directly from a browser `fetch()` -- or a plain `curl` -- by adding a single Spring Boot starter dependency, with no changes to the service itself.
+
+TIP: For a complete, runnable walkthrough with a full sample project, see the https://github.com/neilpmas/gs-connect-rpc[`gs-connect-rpc`] getting-started guide. This page covers the same ground more briefly.
+
+== What You Will Build
+
+Starting from a plain Spring Boot WebFlux application exposing a gRPC service (only callable with a native gRPC client), adding the starter makes the very same service callable over HTTP with a JSON body:
+
+[source,http]
+----
+POST /connect/greeting.v1.GreetingService/Greet
+{"name": "World"}
+----
+
+and get back:
+
+[source,json]
+----
+{"message": "Hello, World!"}
+----
+
+This is the https://connectrpc.com[Connect protocol]. Unlike gRPC-Web, it is wire-compatible with ordinary HTTP requests, so a browser can call your gRPC service directly -- no proxy, no bridge, no separate REST controller.
+
+== Add the Starter Dependency
+
+Add one dependency to your build. No local publish step, no other setup -- it's pulled straight from Maven Central:
+
+[source,groovy]
+----
+dependencies {
+    implementation 'dev.neilmason:connectrpc-spring-boot-starter:0.2.1'
+}
+----
+
+or, for Maven:
+
+[source,xml]
+----
+<dependency>
+    <groupId>dev.neilmason</groupId>
+    <artifactId>connectrpc-spring-boot-starter</artifactId>
+    <version>0.2.1</version>
+</dependency>
+----
+
+That's the entire change. No `@ComponentScan`, no manual bean wiring, no changes to the proto or the service implementation.
+
+== What Just Happened
+
+When the starter is on the classpath of a reactive Spring Boot application, its autoconfiguration activates automatically. It discovers every `BindableService` bean in the context and exposes each RPC at `POST /connect/\{package}.\{Service}/\{Method}`, content-negotiating between `application/json` and `application/proto`.
+
+The gRPC service you already had is now reachable from any HTTP client, including a browser:
+
+[source,javascript]
+----
+const res = await fetch("/connect/greeting.v1.GreetingService/Greet", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: "World" }),
+});
+console.log(await res.json()); // { message: "Hello, World!" }
+----
+
+See xref:configuration-properties.adoc[Configuration Properties] for how to customize the path prefix, CORS, message size limits, and more, and xref:health.adoc[Health] for the standard gRPC health service.

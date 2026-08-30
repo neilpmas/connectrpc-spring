@@ -56,7 +56,7 @@
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <spring-framework.version>7.0.8</spring-framework.version>
+        <spring-framework.version>7.0.9</spring-framework.version>
         <spring-security.version>7.1.0</spring-security.version>
         <grpc.version>1.82.1</grpc.version>
         <protobuf.version>4.35.1</protobuf.version>

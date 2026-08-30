@@ -59,7 +59,7 @@
         <spring-framework.version>7.0.9</spring-framework.version>
         <spring-security.version>7.1.0</spring-security.version>
         <grpc.version>1.82.1</grpc.version>
-        <protobuf.version>4.35.1</protobuf.version>
+        <protobuf.version>4.36.0</protobuf.version>
         <protobuf-maven-plugin.version>5.1.8</protobuf-maven-plugin.version>
 
         <!-- Versions verified as a compatible pair from spring-projects/spring-boot's own build

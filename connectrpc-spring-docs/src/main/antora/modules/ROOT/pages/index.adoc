@@ -2,12 +2,11 @@
 
 Reference documentation for `connectrpc-spring`, which serves the https://connectrpc.com[Connect protocol] from existing gRPC service definitions on plain Spring WebFlux -- no code changes to the service itself.
 
+* xref:why-not-grpc-web.adoc[Why Not gRPC-Web?] -- the problem this library actually solves
 * xref:getting-started.adoc[Getting Started] -- add the starter, no code changes, call it over HTTP
 * xref:system-requirements.adoc[System Requirements]
 * xref:configuration-properties.adoc[Configuration Properties]
 * xref:health.adoc[Health]
-
-The "why not gRPC-Web" explainer is still to come (task-connectrpc-spring-boot-starter Phase 6.4).
 
 == API Reference
 

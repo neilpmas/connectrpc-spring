@@ -1,0 +1,18 @@
+[[why-not-grpc-web]]
+= Why Not gRPC-Web?
+
+Edge runtimes -- Cloudflare Workers and similar -- can't originate native gRPC. There's no `http2.connect`, and no way to send HTTP/2 trailers over `fetch()`. If your browser, mobile app, or edge function needs to call a gRPC service directly, native gRPC is off the table before you write a line of code.
+
+== gRPC-Web looks like the fix. It isn't.
+
+gRPC-Web is not gRPC running over HTTP/1.1 -- it's a genuinely different wire format, with its own framing and its own trailer encoding. A gRPC-Web client talking to a plain gRPC server (or vice versa) *compiles cleanly and fails at runtime*, because nothing at the type level catches the mismatch -- both sides are generated from the same `.proto` file, so the stubs look identical. The failure only shows up when a real request goes out over the wire.
+
+This isn't a hypothetical: it's exactly what happened building the application this library was extracted from. A backend team assumed gRPC-Web would let their edge-hosted frontend talk directly to a plain gRPC Spring Boot service. It never worked, because gRPC-Web requires either a server that speaks it natively or a translating proxy (like grpc-web's own Envoy filter) sitting in front of a plain gRPC server -- neither of which a Spring Boot application provides out of the box, and neither of which fits an edge-first architecture with no proxy tier to run one in.
+
+== Connect protocol is the actual fix
+
+The https://connectrpc.com[Connect protocol] is a simple, direct HTTP mapping: `POST /\{package}.\{Service}/\{Method}`, with a protobuf or JSON body. Any `fetch()`-based client can speak it with no special library, no proxy, and no bridge -- because it *is* ordinary HTTP, not a variant wire format layered on top of it.
+
+Crucially, it reuses the exact same `.proto`-generated service code as native gRPC. `connectrpc-spring` doesn't ask you to write a second implementation, a REST controller, or a translation layer -- it dispatches through the real generated `ServerCallHandler` for each `BindableService` bean already in your application context. Add the starter, and the service you already wrote becomes callable both ways: native gRPC for server-to-server traffic, Connect for anything that only speaks HTTP.
+
+See xref:getting-started.adoc[Getting Started] for what that looks like in practice.
